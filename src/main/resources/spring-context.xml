@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+        <!--开启注解扫描，不扫瞄controller-->
+        <context:component-scan base-package="com.qst.*">
+            <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+        </context:component-scan>
+
+
+
+    <!-- 加载外部属性配置文件 -->
+  <context:property-placeholder location="classpath:jdbc.properties"/>
+
+    <!-- 配置C3P0数据源 -->
+    <bean id="pooledDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="jdbcUrl" value="${jdbc.jdbcUrl}"/>
+        <property name="driverClass" value="${jdbc.driverClass}"/>
+        <property name="user" value="${jdbc.user}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+
+    <!-- 配置session工厂 -->
+    <bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <!--绑定数据源-->
+        <property name="dataSource" ref="pooledDataSource"/>
+        <!--注入mybatis文件-->
+        <property name="configLocation" value="classpath:mybatis-config.xml"/>
+        <!--扫描bean包，设置别名-->
+        <property name="typeAliasesPackage" value="com.qst.bean"/>
+        <!--扫描映射文件-->
+        <property name="mapperLocations">
+            <list>
+                <value>classpath:com/qst/mapper/*Mapper.xml</value>
+            </list>
+        </property>
+        <!--配置插件-->
+        <property name="plugins">
+            <array>
+                <bean class="com.github.pagehelper.PageInterceptor">
+                    <property name="properties">
+                        <!--helperDialect:连接数据库类型-->
+                        <value>
+                            helperDialect=mysql
+                        </value>
+                    </property>
+                </bean>
+            </array>
+        </property>
+    </bean>
+
+    <!--  mybatis自动扫描 将Mapper接口生成代理注入到Spring -->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.qst.mapper"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactoryBean"/>
+
+    </bean>
+
+
+
+    <!--自动扫描service-->
+    <context:component-scan base-package="com.qst.service"/>
+    <!-- 事务管理器 -->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="pooledDataSource"/>
+    </bean>
+    <!---->
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+
+    <tx:advice id="transactionAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="*" propagation="REQUIRED" isolation="DEFAULT" rollback-for="java.lang.Exception"/>
+            <tx:method name="query*" read-only="true"/>
+        </tx:attributes>
+    </tx:advice>
+
+    <aop:config>
+        <aop:advisor advice-ref="transactionAdvice" pointcut="execution(* com.qst..*Service.*(..))"/>
+    </aop:config>
+
+</beans>
